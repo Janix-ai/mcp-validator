@@ -1,0 +1,162 @@
+# Template for validating HTTP-based MCP servers
+# Copy this file to your server's .github/workflows/ directory and customize as needed
+
+name: MCP HTTP Protocol Validation
+
+on:
+  pull_request:
+    branches: [ main, master ]  # Adjust branch names as needed
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  validate-http:
+    name: Validate HTTP MCP Server
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        # Add or modify protocol versions as needed
+        protocol-version: ["2025-03-26"]
+        # Optionally test multiple Python versions
+        # python-version: ['3.10', '3.11', '3.12']
+    
+    # Optional: Add environment variables needed by your server
+    # env:
+    #   API_KEY: ${{ secrets.API_KEY }}
+    #   SERVER_PORT: 8088
+    #   OTHER_VAR: value
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'  # Adjust version as needed
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Install your server's dependencies
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # Install the MCP validator
+          # Option 1: Install from PyPI once published
+          # pip install mcp-protocol-validator
+          # Option 2: Install from the repo
+          pip install git+https://github.com/janix-ai/mcp-validator.git
+          # Install curl for health check
+          sudo apt-get update && sudo apt-get install -y curl
+      
+      - name: Run HTTP Compliance Tests
+        id: http-test
+        run: |
+          mkdir -p reports
+          
+          # Configuration
+          SERVER_PATH="path/to/your/http_server.py"
+          SERVER_PORT="${SERVER_PORT:-8088}"  # Use env var if set, else default to 8088
+          SERVER_URL="http://localhost:${SERVER_PORT}"
+          MAX_RETRIES=30
+          RETRY_INTERVAL=1
+          
+          # Ensure server file exists and is executable
+          if [ ! -f "$SERVER_PATH" ]; then
+            echo "Error: Server file not found at $SERVER_PATH"
+            exit 1
+          fi
+          chmod +x "$SERVER_PATH"
+          
+          # Start your HTTP server in background
+          echo "Starting HTTP server..."
+          python "$SERVER_PATH" &
+          SERVER_PID=$!
+          
+          # Wait for server to be ready
+          echo "Waiting for server to be ready at $SERVER_URL..."
+          for i in $(seq 1 $MAX_RETRIES); do
+            if curl -s "$SERVER_URL/health" >/dev/null; then
+              echo "Server is ready!"
+              break
+            fi
+            if [ $i -eq $MAX_RETRIES ]; then
+              echo "Error: Server failed to start after $MAX_RETRIES attempts"
+              kill $SERVER_PID || true
+              exit 1
+            fi
+            echo "Attempt $i/$MAX_RETRIES - Server not ready, waiting..."
+            sleep $RETRY_INTERVAL
+          done
+          
+          # Run HTTP compliance tests
+          echo "Running compliance tests..."
+          python -m mcp_testing.scripts.http_compliance_test \
+            --protocol-version ${{ matrix.protocol-version }} \
+            --output-dir reports \
+            --server-url "$SERVER_URL"
+          
+          # Store the exit code
+          TEST_EXIT_CODE=$?
+          
+          # Kill the server
+          echo "Stopping HTTP server..."
+          kill $SERVER_PID || true
+          
+          # Exit with the test exit code
+          exit $TEST_EXIT_CODE
+      
+      - name: Upload test reports
+        if: always()  # Upload reports even if tests fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-http-reports-${{ matrix.protocol-version }}
+          path: reports/
+          retention-days: 14
+      
+      - name: Post summary to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            try {
+              const reportFiles = fs.readdirSync('reports');
+              const jsonReportFile = reportFiles.find(file => file.endsWith('.json'));
+              
+              let summary = "## MCP HTTP Validation Results\n\n";
+              
+              if (jsonReportFile) {
+                const reportData = JSON.parse(fs.readFileSync(`reports/${jsonReportFile}`, 'utf8'));
+                summary += `- Protocol Version: ${reportData.protocol_version || 'Unknown'}\n`;
+                summary += `- Success Rate: ${reportData.success_rate || 'Unknown'}\n`;
+                summary += `- Tests Run: ${reportData.total_tests || 0}\n`;
+                
+                // Add failed tests if any
+                const failedTests = (reportData.test_cases || []).filter(tc => tc.status === 'failed');
+                if (failedTests.length > 0) {
+                  summary += `\n### Failed Tests (${failedTests.length}):\n\n`;
+                  failedTests.forEach(test => {
+                    summary += `- ${test.name}: ${test.error_message || 'No error message'}\n`;
+                  });
+                }
+              } else {
+                summary += "No test report found.\n";
+              }
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: summary
+              });
+            } catch (error) {
+              console.error('Error creating PR comment:', error);
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: "## MCP HTTP Validation\n\nError generating test results summary. Check the workflow logs for details."
+              });
+            } 

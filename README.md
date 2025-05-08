@@ -52,12 +52,22 @@ python -m mcp_testing.scripts.compliance_report --server-command "python path/to
 For servers installed via pip (like `mcp-server-fetch`):
 
 ```bash
+<<<<<<< Updated upstream
 # Ensure you're in the correct virtual environment
 source .venv/bin/activate
+=======
+# Test STDIO server with core protocol features only (most reliable option)
+python -m mcp_testing.scripts.compliance_report --server-command "./minimal_mcp_server/minimal_mcp_server.py" --protocol-version 2025-03-26 --test-mode core
+
+# Test STDIO server (skip async tests to avoid potential hanging issues)
+# Note: The standalone test scripts above provide better test coverage
+python -m mcp_testing.scripts.compliance_report --server-command "./minimal_mcp_server/minimal_mcp_server.py" --protocol-version 2025-03-26 --skip-async
+>>>>>>> Stashed changes
 
 # Install the server and dependencies
 pip install your-mcp-server  # Replace with actual package name
 
+<<<<<<< Updated upstream
 # Run compliance tests
 python -m mcp_testing.scripts.compliance_report --server-command "python -m your_server_module" --protocol-version 2024-11-05
 
@@ -69,6 +79,18 @@ BRAVE_API_KEY=api-key python -m mcp_testing.scripts.compliance_report --server-c
 ```
 
 #### Test Configuration Options
+=======
+# Generate reports
+python -m mcp_testing.scripts.compliance_report --server-command "./minimal_mcp_server/minimal_mcp_server.py" --output-dir "./reports" --test-mode core
+python -m mcp_testing.scripts.http_test --server-url http://localhost:8000/mcp --output-dir "./reports"
+```
+
+> **Note:** The compliance report tool may hang when testing async features or tool functionality with the STDIO server. 
+> For the most reliable testing, use the `--test-mode core` option or use the dedicated test scripts (`test_minimal_server.py --full`) 
+> which provide complete coverage including async features and tools.
+
+## Reference Implementations
+>>>>>>> Stashed changes
 
 Common options for both types:
 
@@ -105,8 +127,19 @@ python -m mcp_testing.scripts.basic_interaction --server-command "python -m mcp_
 # Compliance tests with tools-only mode
 python -m mcp_testing.scripts.compliance_report --server-command "python -m mcp_server_fetch" --protocol-version 2024-11-05 --test-mode tools
 
+<<<<<<< Updated upstream
 # Set custom timeouts for tools tests vs. other tests
 python -m mcp_testing.scripts.compliance_report --server-command "python -m mcp_server_fetch" --protocol-version 2024-11-05 --test-timeout 30 --tools-timeout 15
+=======
+# Test only specific functionality
+python -m mcp_testing.scripts.compliance_report --server-command "/path/to/server" --test-mode tools
+
+# Skip async tests if experiencing hanging issues
+python -m mcp_testing.scripts.compliance_report --server-command "/path/to/server" --skip-async
+
+# HTTP debug output
+python -m mcp_testing.scripts.http_test --server-url http://localhost:8000/mcp --debug
+>>>>>>> Stashed changes
 ```
 
 Note: Tool-related tests that timeout are treated as non-critical, allowing testing to continue.

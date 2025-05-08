@@ -363,10 +363,10 @@ class MinimalMCPServer:
         Handle the tools/list method.
         
         Args:
-            params: Optional parameters (listChanged flag in 2025-03-26)
+            params: Optional method parameters
             
         Returns:
-            List of available tools
+            A list of available tools
         """
         tools = []
         
@@ -496,19 +496,55 @@ class MinimalMCPServer:
                 }
             ]
         
-        return {
-            "tools": tools
-        }
+        result = {"tools": tools}
+        print(f"DEBUG: handle_tools_list returning: {json.dumps(result)}")
+        return result
     
     def handle_tools_call(self, params: Dict[str, Any]) -> Dict[str, Any]:
+<<<<<<< Updated upstream:ref_stdio_server/stdio_server_2025_03_26.py
         """Handle the tools/call method."""
+=======
+        """
+        Handle the tools/call method.
+        
+        Args:
+            params: The method parameters
+            
+        Returns:
+            The tool result
+            
+        Raises:
+            InvalidParamsError: If the parameters are invalid
+        """
+        # Debug logging
+        print(f"DEBUG: handle_tools_call received params: {json.dumps(params)}")
+        
+>>>>>>> Stashed changes:minimal_mcp_server/minimal_mcp_server.py
         if "name" not in params:
             raise InvalidParamsError("Missing required parameter: name")
         if "arguments" not in params:
             raise InvalidParamsError("Missing required parameter: arguments")
             
+<<<<<<< Updated upstream:ref_stdio_server/stdio_server_2025_03_26.py
         tool_name = params["name"]
         arguments = params["arguments"]
+=======
+        tool_name = params.get("name", "")
+        
+        # Support multiple parameter naming conventions for compatibility with different clients
+        arguments = params.get("arguments", {})
+        if not arguments:
+            # Try alternate parameter names
+            if "parameters" in params:
+                arguments = params.get("parameters", {})
+                print(f"DEBUG: Using 'parameters' instead of 'arguments': {json.dumps(arguments)}")
+            elif "params" in params:
+                arguments = params.get("params", {})
+                print(f"DEBUG: Using 'params' instead of 'arguments': {json.dumps(arguments)}")
+        
+        # Debug logging 
+        print(f"DEBUG: tool_name={tool_name}, arguments={json.dumps(arguments)}")
+>>>>>>> Stashed changes:minimal_mcp_server/minimal_mcp_server.py
         
         # Find the tool
         tool = None
@@ -522,12 +558,28 @@ class MinimalMCPServer:
             
         # Handle each tool
         if tool_name == "echo":
+<<<<<<< Updated upstream:ref_stdio_server/stdio_server_2025_03_26.py
             # Check for either message or text parameter
             message = arguments.get("message") or arguments.get("text")
             if not message:
                 raise InvalidParamsError("Missing required argument: message")
             return {"content": {"echo": message}}
             
+=======
+            if "text" not in arguments and "message" not in arguments:
+                raise InvalidParamsError("Missing required argument: text")
+            
+            # Support both 'text' and 'message' parameter names
+            message = arguments.get("text", arguments.get("message", ""))
+            
+            # Return immediately with simplified result
+            print(f"ECHO TOOL CALLED WITH: {message}")
+            return {
+                "content": {
+                    "echo": message
+                }
+            }
+>>>>>>> Stashed changes:minimal_mcp_server/minimal_mcp_server.py
         elif tool_name == "add":
             # Validate required parameters
             if "a" not in arguments or "b" not in arguments:
@@ -540,6 +592,7 @@ class MinimalMCPServer:
                 raise InvalidParamsError("Arguments 'a' and 'b' must be numbers")
                 
         elif tool_name == "sleep":
+<<<<<<< Updated upstream:ref_stdio_server/stdio_server_2025_03_26.py
             # Validate required parameters
             seconds = arguments.get("seconds") or arguments.get("duration")
             if not seconds:
@@ -551,6 +604,65 @@ class MinimalMCPServer:
             except (TypeError, ValueError):
                 raise InvalidParamsError("Argument 'seconds' must be a number")
                 
+=======
+            if "duration" not in arguments and "seconds" not in arguments:
+                raise InvalidParamsError("Missing required argument: duration or seconds")
+            try:
+                # Support both 'duration' and 'seconds' parameter names
+                duration = float(arguments.get("duration", arguments.get("seconds", 0)))
+                
+                if duration > 10:  # Limit sleep duration for safety
+                    duration = 10
+                # For synchronous call, actually sleep
+                time.sleep(duration)
+                return {
+                    "content": {
+                        "slept": duration
+                    }
+                }
+            except ValueError:
+                raise InvalidParamsError("Duration must be a number")
+        elif tool_name == "list_directory":
+            if "path" not in arguments:
+                raise InvalidParamsError("Missing required argument: path")
+            # Simulate directory listing
+            path = arguments["path"]
+            # In a real server, this would list actual directory contents
+            items = [
+                {"name": "file1.txt", "type": "file"},
+                {"name": "file2.txt", "type": "file"},
+                {"name": "subdir", "type": "directory"}
+            ]
+            return {
+                "content": {
+                    "items": items
+                }
+            }
+        elif tool_name == "read_file":
+            if "path" not in arguments:
+                raise InvalidParamsError("Missing required argument: path")
+            # Simulate file reading
+            path = arguments["path"]
+            # In a real server, this would read actual file contents
+            content = f"This is the content of {path}"
+            return {
+                "content": {
+                    "content": content
+                }
+            }
+        elif tool_name == "write_file":
+            if "path" not in arguments or "content" not in arguments:
+                raise InvalidParamsError("Missing required arguments: path, content")
+            # Simulate file writing
+            path = arguments["path"]
+            content = arguments["content"]
+            # In a real server, this would write to actual file
+            return {
+                "content": {
+                    "success": True
+                }
+            }
+>>>>>>> Stashed changes:minimal_mcp_server/minimal_mcp_server.py
         else:
             raise InvalidParamsError(f"Unknown tool: {tool_name}")
     
@@ -567,6 +679,9 @@ class MinimalMCPServer:
         Raises:
             InvalidParamsError: If the parameters are invalid
         """
+        # Debug logging
+        print(f"DEBUG: handle_tools_call_async received params: {json.dumps(params)}")
+        
         if self.negotiated_version != "2025-03-26":
             raise MethodNotFoundError("Async tool calls are only supported in protocol version 2025-03-26")
             
@@ -574,7 +689,17 @@ class MinimalMCPServer:
             raise InvalidParamsError("Missing required parameter: name")
             
         tool_name = params.get("name", "")
+        
+        # Support multiple parameter naming conventions for compatibility with different clients
         arguments = params.get("arguments", {})
+        if not arguments:
+            # Try alternate parameter names
+            if "parameters" in params:
+                arguments = params.get("parameters", {})
+                print(f"DEBUG: Using 'parameters' instead of 'arguments': {json.dumps(arguments)}")
+            elif "params" in params:
+                arguments = params.get("params", {})
+                print(f"DEBUG: Using 'params' instead of 'arguments': {json.dumps(arguments)}")
         
         # Generate a call ID
         call_id = str(uuid.uuid4())
