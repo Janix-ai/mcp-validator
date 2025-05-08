@@ -3,7 +3,7 @@ name: Set Repository Topics
 on:
   push:
     branches:
-      - main
+      - none  # Disabled
     paths:
       - '.github/TOPICS'
 
