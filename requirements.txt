@@ -7,7 +7,7 @@ httpx-sse>=0.3.0
 jsonschema>=4.20.0
 pydantic>=2.3.0
 click==8.1.7
-rich==13.5.2
+rich==14.1.0
 pathlib>=1.0.1
 
 # Testing dependencies
